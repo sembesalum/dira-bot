@@ -315,9 +315,12 @@ def handle_text_message(phone_number, text, contact_name=None):
                 is_active=True
             )
         
-        # Send response (use interactive buttons for 3-option selections)
+        # Send response (use interactive buttons for specific states)
         if user_session.current_state in ['gender_disability']:
             send_interactive_response(phone_number, user_session, response)
+        elif user_session.current_state == 'personalized_overview' and response == get_personalized_overview_options():
+            # Send interactive options for personalized overview
+            send_personalized_overview_options(phone_number, response)
         else:
             send_text_message(phone_number, response)
         
@@ -545,9 +548,51 @@ def handle_gender_disability_state(user_session, text_lower):
     user_session.current_state = 'personalized_overview'
     user_session.save()
     
-    return get_personalized_overview(user_session)
+    # Send the personalized overview first
+    overview = get_personalized_overview(user_session)
+    send_text_message(user_session.phone_number, overview)
+    
+    # Then send the options menu with list interactive buttons
+    options_message = get_personalized_overview_options()
+    send_personalized_overview_options(user_session.phone_number, options_message)
+    
+    return "Sent personalized overview and options"
 
 
+
+
+def get_personalized_overview_options():
+    """Get the options menu for personalized overview"""
+    return """Tafadhali chagua moja ya chaguzi zifuatazo:
+
+1️⃣ Maelezo zaidi
+2️⃣ Toa maoni
+3️⃣ Soma PDF
+4️⃣ Rudi Menyu Kuu
+
+Andika nambari ya chaguo lako (1-4)"""
+
+
+def send_personalized_overview_options(phone_number, message):
+    """Send personalized overview options with list interactive buttons"""
+    try:
+        buttons = [
+            "Maelezo zaidi",
+            "Toa maoni", 
+            "Soma PDF",
+            "Rudi Menyu Kuu"
+        ]
+        
+        send_interactive_message(
+            phone_number,
+            "Chagua Chaguo",
+            message,
+            buttons
+        )
+    except Exception as e:
+        print(f"Error sending personalized overview options: {str(e)}")
+        # Fallback to text message
+        send_text_message(phone_number, message)
 
 
 def get_personalized_overview(user_session):
@@ -656,7 +701,21 @@ Je, unataka maelezo zaidi kuhusu sekta fulani, au kutuma maoni yako? Au "Soma PD
 
 def handle_personalized_overview_state(user_session, text_lower):
     """Handle personalized overview state"""
-    if any(word in text_lower for word in ['maelezo', 'details', 'zaidi']):
+    # Handle interactive button responses
+    if 'option_1' in text_lower or 'maelezo zaidi' in text_lower or '1' in text_lower:
+        return get_detailed_info(user_session)
+    elif 'option_2' in text_lower or 'toa maoni' in text_lower or '2' in text_lower:
+        user_session.current_state = 'feedback'
+        user_session.save()
+        return get_feedback_message()
+    elif 'option_3' in text_lower or 'soma pdf' in text_lower or '3' in text_lower:
+        return get_pdf_info()
+    elif 'option_4' in text_lower or 'rudi menyu kuu' in text_lower or '4' in text_lower:
+        user_session.current_state = 'welcome'
+        user_session.save()
+        return get_welcome_message()
+    # Handle text-based responses as fallback
+    elif any(word in text_lower for word in ['maelezo', 'details', 'zaidi']):
         return get_detailed_info(user_session)
     elif any(word in text_lower for word in ['maoni', 'feedback']):
         user_session.current_state = 'feedback'
@@ -669,14 +728,7 @@ def handle_personalized_overview_state(user_session, text_lower):
         user_session.save()
         return get_welcome_message()
     else:
-        return """*Tafadhali chagua moja ya chaguzi zifuatazo:*
-
-1️⃣ Maelezo zaidi
-2️⃣ Toa maoni
-3️⃣ Soma PDF
-4️⃣ Rudi Menyu Kuu
-
-*Andika nambari ya chaguo lako (1-4)*"""
+        return get_personalized_overview_options()
 
 
 
