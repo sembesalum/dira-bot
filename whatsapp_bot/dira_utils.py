@@ -390,7 +390,7 @@ def process_dira_flow(user_session, text):
 
 def get_welcome_message():
     """Get welcome message for DIRA 2050"""
-    return """🇹🇿 *Karibu kwa DIRA 2050 Chatbot!*
+    return """🇹🇿 *Karibu! Mimi ni Dimata, msaidizi wako wa kuelewa Dira ya Maendeleo ya Taifa 2050 kwa urahisi na namna unavyoweza kushiriki kuijenga Tanzania tunayoitamani.*
 
 Hii ni dira ya Tanzania kuwa nchi yenye uchumi imara wa dola trilioni 1, elimu bora, na maisha bora kwa wote ifikapo 2050.
 
@@ -444,7 +444,7 @@ def handle_welcome_state(user_session, text_lower):
             return get_gender_disability_message()
     
     # If no clear activity, ask for clarification
-    return  """🇹🇿 *Karibu kwa DIRA 2050 Chatbot!*
+    return  """🇹🇿 *Karibu! Mimi ni Dimata, msaidizi wako wa kuelewa Dira ya Maendeleo ya Taifa 2050 kwa urahisi na namna unavyoweza kushiriki kuijenga Tanzania tunayoitamani.*
 
 Hii ni dira ya Tanzania kuwa nchi yenye uchumi imara wa dola trilioni 1, elimu bora, na maisha bora kwa wote ifikapo 2050.
 
