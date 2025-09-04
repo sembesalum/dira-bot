@@ -47,17 +47,15 @@ def send_text_message(phone_number, message):
 
 
 def send_interactive_message(phone_number, header_text, body_text, buttons):
-    """Send an interactive message with buttons via WhatsApp API"""
+    """Send an interactive message with list buttons via WhatsApp API"""
     try:
-        # Create button list
-        button_list = []
-        for i, button in enumerate(buttons[:3]):  # WhatsApp allows max 3 buttons
-            button_list.append({
-                "type": "reply",
-                "reply": {
-                    "id": f"btn_{i+1}",
-                    "title": button
-                }
+        # Create list rows
+        rows = []
+        for i, button in enumerate(buttons):
+            rows.append({
+                "id": f"option_{i+1}",
+                "title": button[:24],  # WhatsApp limit
+                "description": f"Chagua {button}"
             })
         
         payload = {
@@ -66,7 +64,7 @@ def send_interactive_message(phone_number, header_text, body_text, buttons):
             "to": phone_number,
             "type": "interactive",
             "interactive": {
-                "type": "button",
+                "type": "list",
                 "header": {
                     "type": "text",
                     "text": header_text
@@ -75,7 +73,13 @@ def send_interactive_message(phone_number, header_text, body_text, buttons):
                     "text": body_text
                 },
                 "action": {
-                    "buttons": button_list
+                    "button": "Chagua",
+                    "sections": [
+                        {
+                            "title": "Chaguzi",
+                            "rows": rows
+                        }
+                    ]
                 }
             }
         }
@@ -91,18 +95,14 @@ def send_interactive_message(phone_number, header_text, body_text, buttons):
 
 
 def send_interactive_response(phone_number, user_session, response_text):
-    """Send interactive response with buttons based on current state"""
+    """Send interactive response with list buttons based on current state"""
     try:
         if user_session.current_state == 'gender_disability':
             header = "Jinsia na Ulemavu"
-            body = "Je, wewe ni:"
-            buttons = ["Mwanaume", "Mwanamke", "Mwanaume + Ulemavu"]
+            body = "Je, wewe ni mwanamke au mwenye ulemavu?\n(Hii itatusaidia kukupa maelezo maalum)"
+            buttons = ["Mwanaume", "Mwanamke", "Mwanaume + Ulemavu", "Mwanamke + Ulemavu", "Sipendi kusema"]
             
             send_interactive_message(phone_number, header, body, buttons)
-            
-            # Send additional options as text
-            additional = "4️⃣ Mwanamke + Ulemavu\n5️⃣ Sipendi kusema\n\n*Andika nambari (4-5) kwa chaguzi zingine*"
-            send_text_message(phone_number, additional)
         else:
             # Fallback to text message
             send_text_message(phone_number, response_text)
@@ -171,7 +171,7 @@ def process_message(value):
                 text_body = message.get('text', {}).get('body', '')
                 handle_text_message(from_number, text_body, contact_name)
             elif message_type == 'interactive':
-                # Handle button interactions
+                # Handle interactive interactions (buttons and lists)
                 interactive = message.get('interactive', {})
                 if interactive.get('type') == 'button_reply':
                     button_id = interactive.get('button_reply', {}).get('id', '')
@@ -185,6 +185,13 @@ def process_message(value):
                         text_body = '3'
                     else:
                         text_body = button_text.lower()
+                    handle_text_message(from_number, text_body, contact_name)
+                else:
+                    # Handle list interactions
+                    list_id = interactive.get('list_reply', {}).get('id', '')
+                    list_text = interactive.get('list_reply', {}).get('title', '')
+                    # Use the ID for list responses to match our option_1, option_2, etc.
+                    text_body = list_id if list_id else list_text.lower()
                     handle_text_message(from_number, text_body, contact_name)
             elif message_type == 'image':
                 handle_image_message(from_number, message)
@@ -227,12 +234,38 @@ def handle_text_message(phone_number, text, contact_name=None):
         send_text_message(phone_number, "Samahani, kuna tatizo la kiufundi. Jaribu tena baadaye.")
 
 
+def clear_user_session(phone_number):
+    """Clear user session and start fresh"""
+    try:
+        # Delete existing session
+        UserSession.objects.filter(phone_number=phone_number).delete()
+        
+        # Create new session
+        user_session = UserSession.objects.create(
+            phone_number=phone_number,
+            current_state='welcome'
+        )
+        return user_session
+    except Exception as e:
+        print(f"Error clearing session: {str(e)}")
+        return None
+
+
 def process_dira_flow(user_session, text):
     """Process DIRA 2050 conversation flow"""
     text_lower = text.lower().strip()
     current_state = user_session.current_state
     
     # Handle special commands
+    if text_lower == '#':
+        # Clear session and restart
+        user_session.current_state = 'welcome'
+        user_session.economic_activity = ''
+        user_session.gender = ''
+        user_session.has_disability = False
+        user_session.save()
+        return get_welcome_message()
+    
     if any(cmd in text_lower for cmd in ['restart', 'anza', 'anza upya']):
         user_session.current_state = 'welcome'
         user_session.save()
@@ -278,6 +311,7 @@ def get_help_message():
     return """🆘 *Msaada wa DIRA 2050 Chatbot*
 
 *Amri za kawaida:*
+• "#" - Futa session na anza upya
 • "Rudi Menyu Kuu" - Anza mazungumzo upya
 • "Maelezo" - Pata maelezo zaidi
 • "Maoni" - Toa maoni yako
@@ -356,15 +390,43 @@ def handle_economic_activity_state(user_session, text_lower):
             user_session.economic_activity = value
             user_session.current_state = 'gender_disability'
             user_session.save()
-            return get_gender_disability_message(user_session)
+            return get_gender_disability_message()
     
     # If no clear activity, ask for clarification
-    return get_economic_activity_message(user_session)
+    return """Samahani, sijaelewa. Tafadhali chagua moja ya chaguzi zifuatazo:
+
+*Kama vijana, wewe unafanya nini kiuchumi?*
+
+1️⃣ Mwanafunzi
+2️⃣ Mkulima  
+3️⃣ Mjasiriamali
+4️⃣ Mfanyakazi
+5️⃣ Bila ajira
+6️⃣ Nyingine
+
+*Andika nambari ya chaguo lako (1-6)*"""
 
 
 def handle_gender_disability_state(user_session, text_lower):
     """Handle gender and disability state"""
-    if '1' in text_lower:
+    # Handle interactive button responses
+    if 'option_1' in text_lower or 'mwanaume' in text_lower:
+        user_session.gender = 'male'
+        user_session.has_disability = False
+    elif 'option_2' in text_lower or 'mwanamke' in text_lower:
+        user_session.gender = 'female'
+        user_session.has_disability = False
+    elif 'option_3' in text_lower or ('mwanaume' in text_lower and 'ulemavu' in text_lower):
+        user_session.gender = 'male'
+        user_session.has_disability = True
+    elif 'option_4' in text_lower or ('mwanamke' in text_lower and 'ulemavu' in text_lower):
+        user_session.gender = 'female'
+        user_session.has_disability = True
+    elif 'option_5' in text_lower or 'sipendi' in text_lower:
+        # Prefer not to say - keep defaults
+        pass
+    # Handle numbered responses as fallback
+    elif '1' in text_lower:
         user_session.gender = 'male'
         user_session.has_disability = False
     elif '2' in text_lower:
