@@ -189,8 +189,8 @@ def get_or_create_user_session(phone_number, contact_name=None):
             if session.current_state == 'welcome':
                 return session, 'welcome'
             else:
-                # User is in middle of conversation
-                return session, 'active'
+                # User is in middle of conversation - allow normal flow
+                return session, 'continue'
                 
         except UserSession.DoesNotExist:
             # First time user - create new session
@@ -288,35 +288,26 @@ def handle_text_message(phone_number, text, contact_name=None):
             log_conversation(user_session, 'outgoing', response)
             return
             
-        elif session_status == 'active':
-            # User is in middle of conversation - check if they're trying to continue
-            if any(cmd in text_lower for cmd in ['#', 'restart_session', 'anza upya']):
-                # User wants to restart - process normally
-                pass
-            else:
-                # User is trying to continue conversation - show warning
-                response = """⚠️ *Umeingilia session iliyopo!*
-
-Unaendelea na mazungumzo yako ya awali. Ikiwa unataka kuanza upya, bonyeza kitufe hapa chini."""
-                
-                # Send restart button
-                send_restart_button(phone_number, response)
-                log_conversation(user_session, 'outgoing', response)
-                return
+        elif session_status == 'continue':
+            # User is continuing conversation - allow normal flow
+            pass
         
         # Log incoming message
         log_conversation(user_session, 'incoming', text)
         
         # Process based on current state
-        response = process_dira_flow(user_session, text)
-        
-        # Check if session was restarted (deleted and recreated)
         try:
-            # Try to get the session again in case it was recreated
+            response = process_dira_flow(user_session, text)
+        except Exception as e:
+            print(f"Error in process_dira_flow: {str(e)}")
+            response = "Samahani, kuna tatizo la kiufundi. Jaribu tena baadaye."
+        
+        # Always get the current session after processing (in case it was recreated)
+        try:
             current_session = UserSession.objects.get(phone_number=phone_number)
             user_session = current_session
         except UserSession.DoesNotExist:
-            # Session was deleted, create new one
+            # Fallback - create new session if none exists
             user_session = UserSession.objects.create(
                 phone_number=phone_number,
                 name=contact_name,
