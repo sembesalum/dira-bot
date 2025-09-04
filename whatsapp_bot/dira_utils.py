@@ -559,7 +559,7 @@ def handle_gender_disability_state(user_session, text_lower):
     options_message = get_personalized_overview_options()
     send_personalized_overview_options(user_session.phone_number, options_message)
     
-    return "Sent personalized overview and options"
+    return 
 
 
 
