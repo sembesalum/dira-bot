@@ -186,11 +186,11 @@ def get_or_create_user_session(phone_number, contact_name=None):
                 return session, 'expired'
             
             # Session exists and is active
-            if session.current_state != 'welcome':
+            if session.current_state == 'welcome':
+                return session, 'welcome'
+            else:
                 # User is in middle of conversation
                 return session, 'active'
-            else:
-                return session, 'welcome'
                 
         except UserSession.DoesNotExist:
             # First time user - create new session
@@ -289,15 +289,20 @@ def handle_text_message(phone_number, text, contact_name=None):
             return
             
         elif session_status == 'active':
-            # User is in middle of conversation
-            response = """⚠️ *Umeingilia session iliyopo!*
+            # User is in middle of conversation - check if they're trying to continue
+            if any(cmd in text_lower for cmd in ['#', 'restart_session', 'anza upya']):
+                # User wants to restart - process normally
+                pass
+            else:
+                # User is trying to continue conversation - show warning
+                response = """⚠️ *Umeingilia session iliyopo!*
 
 Unaendelea na mazungumzo yako ya awali. Ikiwa unataka kuanza upya, bonyeza kitufe hapa chini."""
-            
-            # Send restart button
-            send_restart_button(phone_number, response)
-            log_conversation(user_session, 'outgoing', response)
-            return
+                
+                # Send restart button
+                send_restart_button(phone_number, response)
+                log_conversation(user_session, 'outgoing', response)
+                return
         
         # Log incoming message
         log_conversation(user_session, 'incoming', text)
@@ -358,11 +363,13 @@ def process_dira_flow(user_session, text):
     # Handle special commands
     if text_lower == '#' or 'restart_session' in text_lower or 'anza upya' in text_lower:
         # Clear session completely and start fresh
+        phone_number = user_session.phone_number
+        name = user_session.name
         user_session.delete()
         # Create new session
         new_session = UserSession.objects.create(
-            phone_number=user_session.phone_number,
-            name=user_session.name,
+            phone_number=phone_number,
+            name=name,
             current_state='welcome',
             is_active=True
         )
@@ -370,10 +377,6 @@ def process_dira_flow(user_session, text):
         user_session = new_session
         return get_welcome_message()
     
-    if any(cmd in text_lower for cmd in ['restart', 'anza', 'anza upya']):
-        user_session.current_state = 'welcome'
-        user_session.save()
-        return get_welcome_message()
     
     if any(cmd in text_lower for cmd in ['help', 'msaada']):
         return get_help_message()
