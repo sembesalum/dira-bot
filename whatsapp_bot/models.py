@@ -6,6 +6,10 @@ class UserSession(models.Model):
     """Model to track user sessions and conversation state"""
     phone_number = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=100, blank=True, null=True)
+    language = models.CharField(max_length=10, choices=[
+        ('swahili', 'Kiswahili'),
+        ('english', 'English')
+    ], default='swahili')
     gender = models.CharField(max_length=10, choices=[
         ('male', 'Male'),
         ('female', 'Female'),

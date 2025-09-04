@@ -46,6 +46,102 @@ def send_text_message(phone_number, message):
         return None
 
 
+def send_interactive_message(phone_number, header_text, body_text, buttons):
+    """Send an interactive message with buttons via WhatsApp API"""
+    try:
+        # Create button list
+        button_list = []
+        for i, button in enumerate(buttons[:3]):  # WhatsApp allows max 3 buttons
+            button_list.append({
+                "type": "reply",
+                "reply": {
+                    "id": f"btn_{i+1}",
+                    "title": button
+                }
+            })
+        
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": phone_number,
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "header": {
+                    "type": "text",
+                    "text": header_text
+                },
+                "body": {
+                    "text": body_text
+                },
+                "action": {
+                    "buttons": button_list
+                }
+            }
+        }
+        
+        # Send via WhatsApp API
+        response = whatsapp_api_call(payload)
+        if not response or response.get('error'):
+            print(f"Failed to send interactive message: {response.get('error', {}).get('message', 'Unknown error')}")
+        return response
+    except Exception as e:
+        print(f"Error in send_interactive_message: {str(e)}")
+        return None
+
+
+def send_interactive_response(phone_number, user_session, response_text):
+    """Send interactive response with buttons based on current state"""
+    try:
+        if user_session.current_state == 'economic_activity':
+            if user_session.language == 'english':
+                header = "Economic Activity"
+                body = "What is your economic activity?"
+                buttons = ["Student", "Farmer", "Entrepreneur"]
+            else:
+                header = "Shughuli za Kiuchumi"
+                body = "Kama vijana, wewe unafanya nini kiuchumi?"
+                buttons = ["Mwanafunzi", "Mkulima", "Mjasiriamali"]
+            
+            send_interactive_message(phone_number, header, body, buttons)
+            
+            # Send additional options as text
+            if user_session.language == 'english':
+                additional = "4️⃣ Worker\n5️⃣ Unemployed\n6️⃣ Other\n\n*Type the number (4-6) for other options*"
+            else:
+                additional = "4️⃣ Mfanyakazi\n5️⃣ Bila ajira\n6️⃣ Nyingine\n\n*Andika nambari (4-6) kwa chaguzi zingine*"
+            
+            send_text_message(phone_number, additional)
+            
+        elif user_session.current_state == 'gender_disability':
+            if user_session.language == 'english':
+                header = "Gender & Disability"
+                body = "Please specify your gender and disability status:"
+                buttons = ["Male", "Female", "Male + Disability"]
+            else:
+                header = "Jinsia na Ulemavu"
+                body = "Je, wewe ni:"
+                buttons = ["Mwanaume", "Mwanamke", "Mwanaume + Ulemavu"]
+            
+            send_interactive_message(phone_number, header, body, buttons)
+            
+            # Send additional options as text
+            if user_session.language == 'english':
+                additional = "4️⃣ Female + Disability\n5️⃣ Prefer not to say\n\n*Type the number (4-5) for other options*"
+            else:
+                additional = "4️⃣ Mwanamke + Ulemavu\n5️⃣ Sipendi kusema\n\n*Andika nambari (4-5) kwa chaguzi zingine*"
+            
+            send_text_message(phone_number, additional)
+        else:
+            # Fallback to text message
+            send_text_message(phone_number, response_text)
+            
+    except Exception as e:
+        print(f"Error in send_interactive_response: {str(e)}")
+        # Fallback to text message
+        send_text_message(phone_number, response_text)
+
+
 def log_conversation(user_session, message_type, content):
     """Log conversation for analytics"""
     try:
@@ -103,6 +199,22 @@ def process_message(value):
             if message_type == 'text':
                 text_body = message.get('text', {}).get('body', '')
                 handle_text_message(from_number, text_body, contact_name)
+            elif message_type == 'interactive':
+                # Handle button interactions
+                interactive = message.get('interactive', {})
+                if interactive.get('type') == 'button_reply':
+                    button_id = interactive.get('button_reply', {}).get('id', '')
+                    button_text = interactive.get('button_reply', {}).get('title', '')
+                    # Convert button ID to number for processing
+                    if button_id == 'btn_1':
+                        text_body = '1'
+                    elif button_id == 'btn_2':
+                        text_body = '2'
+                    elif button_id == 'btn_3':
+                        text_body = '3'
+                    else:
+                        text_body = button_text.lower()
+                    handle_text_message(from_number, text_body, contact_name)
             elif message_type == 'image':
                 handle_image_message(from_number, message)
             elif message_type == 'document':
@@ -130,8 +242,11 @@ def handle_text_message(phone_number, text, contact_name=None):
         # Process based on current state
         response = process_dira_flow(user_session, text)
         
-        # Send response
-        send_text_message(phone_number, response)
+        # Send response (use interactive buttons for certain states)
+        if user_session.current_state in ['economic_activity', 'gender_disability']:
+            send_interactive_response(phone_number, user_session, response)
+        else:
+            send_text_message(phone_number, response)
         
         # Log outgoing message
         log_conversation(user_session, 'outgoing', response)
@@ -158,10 +273,10 @@ def process_dira_flow(user_session, text):
     # State-based processing
     if current_state == 'welcome':
         return handle_welcome_state(user_session, text_lower)
-    elif current_state == 'gender_disability':
-        return handle_gender_disability_state(user_session, text_lower)
     elif current_state == 'economic_activity':
         return handle_economic_activity_state(user_session, text_lower)
+    elif current_state == 'gender_disability':
+        return handle_gender_disability_state(user_session, text_lower)
     elif current_state == 'personalized_overview':
         return handle_personalized_overview_state(user_session, text_lower)
     elif current_state == 'quiz':
@@ -178,17 +293,11 @@ def get_welcome_message():
 
 Hii ni dira ya Tanzania kuwa nchi yenye uchumi imara wa dola trilioni 1, elimu bora, na maisha bora kwa wote ifikapo 2050.
 
-Kama vijana, wewe unafanya nini kiuchumi? Chagua moja:
-1️⃣ Mwanafunzi
-2️⃣ Mkulima  
-3️⃣ Mjasiriamali
-4️⃣ Mfanyakazi
-5️⃣ Bila ajira
-6️⃣ Nyingine
+*Chagua lugha yako / Choose your language:*
+1️⃣ Kiswahili
+2️⃣ English
 
-*Au andika jibu lako kwa maneno yako mwenyewe.*
-
-Je, wewe ni mwanamke au mwenye ulemavu? (Hii itatusaidia kukupa maelezo maalum)"""
+*Andika nambari ya chaguo lako (1 au 2)*"""
 
 
 def get_help_message():
@@ -196,11 +305,11 @@ def get_help_message():
     return """🆘 *Msaada wa DIRA 2050 Chatbot*
 
 *Amri za kawaida:*
-• "Anza" - Anza mazungumzo upya
-• "Quiz" - Anza jaribio la maswali
-• "Maelezo" - Pata maelezo zaidi
-• "Maoni" - Toa maoni yako
-• "PDF" - Pata muhtasari wa kurasa
+• "5" au "Anza" - Anza mazungumzo upya
+• "1" au "Quiz" - Anza jaribio la maswali
+• "2" au "Maelezo" - Pata maelezo zaidi
+• "3" au "Maoni" - Toa maoni yako
+• "4" au "PDF" - Pata muhtasari wa kurasa
 
 *Kuhusu DIRA 2050:*
 DIRA ni Dira ya Maendeleo ya Tanzania 2050 inayolenga kuwa nchi yenye uchumi imara, elimu bora na maisha bora kwa wote.
@@ -210,26 +319,45 @@ Tembelea: www.planning.go.tz"""
 
 
 def handle_welcome_state(user_session, text_lower):
-    """Handle welcome state"""
-    # Check for economic activity selection
-    activity_map = {
-        '1': 'student', 'mwanafunzi': 'student', 'student': 'student',
-        '2': 'farmer', 'mkulima': 'farmer', 'farmer': 'farmer', 'kilimo': 'farmer',
-        '3': 'entrepreneur', 'mjasiriamali': 'entrepreneur', 'entrepreneur': 'entrepreneur', 'biashara': 'entrepreneur',
-        '4': 'worker', 'mfanyakazi': 'worker', 'worker': 'worker', 'ajira': 'worker',
-        '5': 'unemployed', 'bila ajira': 'unemployed', 'unemployed': 'unemployed', 'huna': 'unemployed'
-    }
-    
-    for key, value in activity_map.items():
-        if key in text_lower:
-            user_session.economic_activity = value
-            user_session.current_state = 'gender_disability'
-            user_session.save()
-            return get_gender_disability_message()
-    
-    # If no clear activity, ask for clarification
-    return """Samahani, sijaelewa. Tafadhali chagua moja ya chaguzi zifuatazo:
+    """Handle welcome state - language selection"""
+    if '1' in text_lower or 'kiswahili' in text_lower:
+        user_session.language = 'swahili'
+        user_session.current_state = 'economic_activity'
+        user_session.save()
+        return get_economic_activity_message(user_session)
+    elif '2' in text_lower or 'english' in text_lower:
+        user_session.language = 'english'
+        user_session.current_state = 'economic_activity'
+        user_session.save()
+        return get_economic_activity_message(user_session)
+    else:
+        return """Samahani, sijaelewa. Tafadhali chagua moja ya chaguzi zifuatazo:
 
+*Chagua lugha yako / Choose your language:*
+1️⃣ Kiswahili
+2️⃣ English
+
+*Andika nambari ya chaguo lako (1 au 2)*"""
+
+
+def get_economic_activity_message(user_session):
+    """Get economic activity selection message"""
+    if user_session.language == 'english':
+        return """*What is your economic activity?*
+
+Choose one:
+1️⃣ Student
+2️⃣ Farmer
+3️⃣ Entrepreneur
+4️⃣ Worker
+5️⃣ Unemployed
+6️⃣ Other
+
+*Type the number of your choice (1-6)*"""
+    else:
+        return """*Kama vijana, wewe unafanya nini kiuchumi?*
+
+Chagua moja:
 1️⃣ Mwanafunzi
 2️⃣ Mkulima  
 3️⃣ Mjasiriamali
@@ -237,41 +365,81 @@ def handle_welcome_state(user_session, text_lower):
 5️⃣ Bila ajira
 6️⃣ Nyingine
 
-*Au andika jibu lako kwa maneno yako mwenyewe.*"""
+*Andika nambari ya chaguo lako (1-6)*"""
 
 
-def get_gender_disability_message():
+def get_gender_disability_message(user_session):
     """Get gender and disability question"""
-    return """Asante! Sasa, je wewe ni:
-• Mwanamke au mwanaume?
-• Mwenye ulemavu au la?
+    if user_session.language == 'english':
+        return """*Please specify:*
 
-*Hii itatusaidia kukupa maelezo maalum yanayokufaa zaidi.*
+1️⃣ Male
+2️⃣ Female
+3️⃣ Male with disability
+4️⃣ Female with disability
+5️⃣ Prefer not to say
 
-Andika jibu lako (k.m. "Mimi ni mwanamke" au "Mimi ni mwanaume mwenye ulemavu")"""
+*Type the number of your choice (1-5)*"""
+    else:
+        return """*Je, wewe ni:*
+
+1️⃣ Mwanaume
+2️⃣ Mwanamke
+3️⃣ Mwanaume mwenye ulemavu
+4️⃣ Mwanamke mwenye ulemavu
+5️⃣ Sipendi kusema
+
+*Andika nambari ya chaguo lako (1-5)*"""
+
+
+def handle_economic_activity_state(user_session, text_lower):
+    """Handle economic activity state"""
+    activity_map = {
+        '1': 'student',
+        '2': 'farmer', 
+        '3': 'entrepreneur',
+        '4': 'worker',
+        '5': 'unemployed',
+        '6': 'other'
+    }
+    
+    for key, value in activity_map.items():
+        if key in text_lower:
+            user_session.economic_activity = value
+            user_session.current_state = 'gender_disability'
+            user_session.save()
+            return get_gender_disability_message(user_session)
+    
+    # If no clear activity, ask for clarification
+    return get_economic_activity_message(user_session)
 
 
 def handle_gender_disability_state(user_session, text_lower):
     """Handle gender and disability state"""
-    # Extract gender
-    if any(word in text_lower for word in ['mwanamke', 'woman', 'female']):
-        user_session.gender = 'female'
-    elif any(word in text_lower for word in ['mwanaume', 'man', 'male']):
+    if '1' in text_lower:
         user_session.gender = 'male'
-    
-    # Extract disability status
-    if any(word in text_lower for word in ['ulemavu', 'disabled', 'disability']):
+        user_session.has_disability = False
+    elif '2' in text_lower:
+        user_session.gender = 'female'
+        user_session.has_disability = False
+    elif '3' in text_lower:
+        user_session.gender = 'male'
         user_session.has_disability = True
+    elif '4' in text_lower:
+        user_session.gender = 'female'
+        user_session.has_disability = True
+    elif '5' in text_lower:
+        # Prefer not to say - keep defaults
+        pass
+    else:
+        return get_gender_disability_message(user_session)
     
-    user_session.current_state = 'economic_activity'
+    user_session.current_state = 'personalized_overview'
     user_session.save()
     
     return get_personalized_overview(user_session)
 
 
-def handle_economic_activity_state(user_session, text_lower):
-    """Handle economic activity state"""
-    return get_personalized_overview(user_session)
 
 
 def get_personalized_overview(user_session):
@@ -379,10 +547,22 @@ Je, unataka maelezo zaidi, quiz, au kutuma maoni?"""
 
     # Add gender/disability specific message
     if gender == 'female':
-        message += "\n\n*Kama mwanamke vijana, DIRA inasisitiza usawa wa kijinsia katika ajira na umiliki wa ardhi.*"
+        if user_session.language == 'english':
+            message += "\n\n*As a young woman, DIRA emphasizes gender equality in employment and land ownership.*"
+        else:
+            message += "\n\n*Kama mwanamke vijana, DIRA inasisitiza usawa wa kijinsia katika ajira na umiliki wa ardhi.*"
     
     if has_disability:
-        message += "\n\n*Kama mwenye ulemavu, DIRA inasisitiza uwezeshaji na fursa sawa katika maendeleo.*"
+        if user_session.language == 'english':
+            message += "\n\n*As a person with disability, DIRA emphasizes empowerment and equal opportunities in development.*"
+        else:
+            message += "\n\n*Kama mwenye ulemavu, DIRA inasisitiza uwezeshaji na fursa sawa katika maendeleo.*"
+
+    # Add menu options
+    if user_session.language == 'english':
+        message += "\n\n*What would you like to do next?*\n\n1️⃣ Take Quiz\n2️⃣ Get Details\n3️⃣ Give Feedback\n4️⃣ View PDF Summary\n5️⃣ Restart\n\n*Type the number of your choice (1-5)*"
+    else:
+        message += "\n\n*Je, unataka kufanya nini baadaye?*\n\n1️⃣ Anza Quiz\n2️⃣ Pata Maelezo\n3️⃣ Toa Maoni\n4️⃣ Angalia PDF\n5️⃣ Anza Upya\n\n*Andika nambari ya chaguo lako (1-5)*"
 
     user_session.current_state = 'personalized_overview'
     user_session.save()
@@ -392,23 +572,41 @@ Je, unataka maelezo zaidi, quiz, au kutuma maoni?"""
 
 def handle_personalized_overview_state(user_session, text_lower):
     """Handle personalized overview state"""
-    if any(word in text_lower for word in ['quiz', 'jaribio', 'maswali']):
+    if '1' in text_lower or any(word in text_lower for word in ['quiz', 'jaribio', 'maswali']):
         return start_quiz(user_session)
-    elif any(word in text_lower for word in ['maoni', 'feedback', 'maelezo']):
+    elif '2' in text_lower or any(word in text_lower for word in ['maelezo', 'details', 'zaidi']):
+        return get_detailed_info(user_session)
+    elif '3' in text_lower or any(word in text_lower for word in ['maoni', 'feedback']):
         user_session.current_state = 'feedback'
         user_session.save()
         return get_feedback_message()
-    elif any(word in text_lower for word in ['maelezo', 'details', 'zaidi']):
-        return get_detailed_info(user_session)
-    elif any(word in text_lower for word in ['pdf', 'document']):
+    elif '4' in text_lower or any(word in text_lower for word in ['pdf', 'document']):
         return get_pdf_info()
+    elif '5' in text_lower or any(word in text_lower for word in ['anza', 'restart']):
+        user_session.current_state = 'welcome'
+        user_session.save()
+        return get_welcome_message()
     else:
-        return """Tafadhali chagua moja ya chaguzi zifuatazo:
+        if user_session.language == 'english':
+            return """*Please choose an option:*
 
-• "Quiz" - Anza jaribio la maswali
-• "Maelezo" - Pata maelezo zaidi
-• "Maoni" - Toa maoni yako
-• "PDF" - Pata muhtasari wa kurasa"""
+1️⃣ Take Quiz
+2️⃣ Get Details
+3️⃣ Give Feedback
+4️⃣ View PDF Summary
+5️⃣ Restart
+
+*Type the number of your choice (1-5)*"""
+        else:
+            return """*Tafadhali chagua moja ya chaguzi zifuatazo:*
+
+1️⃣ Anza Quiz
+2️⃣ Pata Maelezo
+3️⃣ Toa Maoni
+4️⃣ Angalia PDF
+5️⃣ Anza Upya
+
+*Andika nambari ya chaguo lako (1-5)*"""
 
 
 def start_quiz(user_session):
@@ -723,14 +921,28 @@ Je, unataka quiz, maoni, au "Anza" kuanza upya?"""
 
 def handle_default_response(user_session, text_lower):
     """Handle default response"""
-    return """Samahani, sijaelewa. Tafadhali chagua moja ya chaguzi zifuatazo:
+    if user_session.language == 'english':
+        return """Sorry, I didn't understand. Please choose one of the following options:
 
-• "Quiz" - Anza jaribio la maswali
-• "Maelezo" - Pata maelezo zaidi
-• "Maoni" - Toa maoni yako
-• "PDF" - Pata muhtasari wa kurasa
-• "Anza" - Anza mazungumzo upya
-• "Msaada" - Pata msaada"""
+1️⃣ Take Quiz
+2️⃣ Get Details  
+3️⃣ Give Feedback
+4️⃣ View PDF Summary
+5️⃣ Restart
+6️⃣ Help
+
+*Type the number of your choice (1-6)*"""
+    else:
+        return """Samahani, sijaelewa. Tafadhali chagua moja ya chaguzi zifuatazo:
+
+1️⃣ Anza Quiz
+2️⃣ Pata Maelezo
+3️⃣ Toa Maoni
+4️⃣ Angalia PDF
+5️⃣ Anza Upya
+6️⃣ Msaada
+
+*Andika nambari ya chaguo lako (1-6)*"""
 
 
 def handle_image_message(phone_number, message):
