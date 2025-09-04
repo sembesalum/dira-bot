@@ -93,44 +93,15 @@ def send_interactive_message(phone_number, header_text, body_text, buttons):
 def send_interactive_response(phone_number, user_session, response_text):
     """Send interactive response with buttons based on current state"""
     try:
-        if user_session.current_state == 'economic_activity':
-            if user_session.language == 'english':
-                header = "Economic Activity"
-                body = "What is your economic activity?"
-                buttons = ["Student", "Farmer", "Entrepreneur"]
-            else:
-                header = "Shughuli za Kiuchumi"
-                body = "Kama vijana, wewe unafanya nini kiuchumi?"
-                buttons = ["Mwanafunzi", "Mkulima", "Mjasiriamali"]
+        if user_session.current_state == 'gender_disability':
+            header = "Jinsia na Ulemavu"
+            body = "Je, wewe ni:"
+            buttons = ["Mwanaume", "Mwanamke", "Mwanaume + Ulemavu"]
             
             send_interactive_message(phone_number, header, body, buttons)
             
             # Send additional options as text
-            if user_session.language == 'english':
-                additional = "4️⃣ Worker\n5️⃣ Unemployed\n6️⃣ Other\n\n*Type the number (4-6) for other options*"
-            else:
-                additional = "4️⃣ Mfanyakazi\n5️⃣ Bila ajira\n6️⃣ Nyingine\n\n*Andika nambari (4-6) kwa chaguzi zingine*"
-            
-            send_text_message(phone_number, additional)
-            
-        elif user_session.current_state == 'gender_disability':
-            if user_session.language == 'english':
-                header = "Gender & Disability"
-                body = "Please specify your gender and disability status:"
-                buttons = ["Male", "Female", "Male + Disability"]
-            else:
-                header = "Jinsia na Ulemavu"
-                body = "Je, wewe ni:"
-                buttons = ["Mwanaume", "Mwanamke", "Mwanaume + Ulemavu"]
-            
-            send_interactive_message(phone_number, header, body, buttons)
-            
-            # Send additional options as text
-            if user_session.language == 'english':
-                additional = "4️⃣ Female + Disability\n5️⃣ Prefer not to say\n\n*Type the number (4-5) for other options*"
-            else:
-                additional = "4️⃣ Mwanamke + Ulemavu\n5️⃣ Sipendi kusema\n\n*Andika nambari (4-5) kwa chaguzi zingine*"
-            
+            additional = "4️⃣ Mwanamke + Ulemavu\n5️⃣ Sipendi kusema\n\n*Andika nambari (4-5) kwa chaguzi zingine*"
             send_text_message(phone_number, additional)
         else:
             # Fallback to text message
@@ -242,8 +213,8 @@ def handle_text_message(phone_number, text, contact_name=None):
         # Process based on current state
         response = process_dira_flow(user_session, text)
         
-        # Send response (use interactive buttons for certain states)
-        if user_session.current_state in ['economic_activity', 'gender_disability']:
+        # Send response (use interactive buttons for 3-option selections)
+        if user_session.current_state in ['gender_disability']:
             send_interactive_response(phone_number, user_session, response)
         else:
             send_text_message(phone_number, response)
@@ -273,14 +244,10 @@ def process_dira_flow(user_session, text):
     # State-based processing
     if current_state == 'welcome':
         return handle_welcome_state(user_session, text_lower)
-    elif current_state == 'economic_activity':
-        return handle_economic_activity_state(user_session, text_lower)
     elif current_state == 'gender_disability':
         return handle_gender_disability_state(user_session, text_lower)
     elif current_state == 'personalized_overview':
         return handle_personalized_overview_state(user_session, text_lower)
-    elif current_state == 'quiz':
-        return handle_quiz_state(user_session, text_lower)
     elif current_state == 'feedback':
         return handle_feedback_state(user_session, text_lower)
     else:
@@ -293,69 +260,7 @@ def get_welcome_message():
 
 Hii ni dira ya Tanzania kuwa nchi yenye uchumi imara wa dola trilioni 1, elimu bora, na maisha bora kwa wote ifikapo 2050.
 
-*Chagua lugha yako / Choose your language:*
-1️⃣ Kiswahili
-2️⃣ English
-
-*Andika nambari ya chaguo lako (1 au 2)*"""
-
-
-def get_help_message():
-    """Get help message"""
-    return """🆘 *Msaada wa DIRA 2050 Chatbot*
-
-*Amri za kawaida:*
-• "5" au "Anza" - Anza mazungumzo upya
-• "1" au "Quiz" - Anza jaribio la maswali
-• "2" au "Maelezo" - Pata maelezo zaidi
-• "3" au "Maoni" - Toa maoni yako
-• "4" au "PDF" - Pata muhtasari wa kurasa
-
-*Kuhusu DIRA 2050:*
-DIRA ni Dira ya Maendeleo ya Tanzania 2050 inayolenga kuwa nchi yenye uchumi imara, elimu bora na maisha bora kwa wote.
-
-*Kwa msaada zaidi:*
-Tembelea: www.planning.go.tz"""
-
-
-def handle_welcome_state(user_session, text_lower):
-    """Handle welcome state - language selection"""
-    if '1' in text_lower or 'kiswahili' in text_lower:
-        user_session.language = 'swahili'
-        user_session.current_state = 'economic_activity'
-        user_session.save()
-        return get_economic_activity_message(user_session)
-    elif '2' in text_lower or 'english' in text_lower:
-        user_session.language = 'english'
-        user_session.current_state = 'economic_activity'
-        user_session.save()
-        return get_economic_activity_message(user_session)
-    else:
-        return """Samahani, sijaelewa. Tafadhali chagua moja ya chaguzi zifuatazo:
-
-*Chagua lugha yako / Choose your language:*
-1️⃣ Kiswahili
-2️⃣ English
-
-*Andika nambari ya chaguo lako (1 au 2)*"""
-
-
-def get_economic_activity_message(user_session):
-    """Get economic activity selection message"""
-    if user_session.language == 'english':
-        return """*What is your economic activity?*
-
-Choose one:
-1️⃣ Student
-2️⃣ Farmer
-3️⃣ Entrepreneur
-4️⃣ Worker
-5️⃣ Unemployed
-6️⃣ Other
-
-*Type the number of your choice (1-6)*"""
-    else:
-        return """*Kama vijana, wewe unafanya nini kiuchumi?*
+*Kama vijana, wewe unafanya nini kiuchumi?*
 
 Chagua moja:
 1️⃣ Mwanafunzi
@@ -368,20 +273,63 @@ Chagua moja:
 *Andika nambari ya chaguo lako (1-6)*"""
 
 
-def get_gender_disability_message(user_session):
+def get_help_message():
+    """Get help message"""
+    return """🆘 *Msaada wa DIRA 2050 Chatbot*
+
+*Amri za kawaida:*
+• "Rudi Menyu Kuu" - Anza mazungumzo upya
+• "Maelezo" - Pata maelezo zaidi
+• "Maoni" - Toa maoni yako
+• "PDF" - Pata muhtasari wa kurasa
+
+*Kuhusu DIRA 2050:*
+DIRA ni Dira ya Maendeleo ya Tanzania 2050 inayolenga kuwa nchi yenye uchumi imara, elimu bora na maisha bora kwa wote.
+
+*Kwa msaada zaidi:*
+Tembelea: www.planning.go.tz"""
+
+
+def handle_welcome_state(user_session, text_lower):
+    """Handle welcome state - economic activity selection"""
+    activity_map = {
+        '1': 'student',
+        '2': 'farmer', 
+        '3': 'entrepreneur',
+        '4': 'worker',
+        '5': 'unemployed',
+        '6': 'other'
+    }
+    
+    for key, value in activity_map.items():
+        if key in text_lower:
+            user_session.economic_activity = value
+            user_session.current_state = 'gender_disability'
+            user_session.save()
+            return get_gender_disability_message()
+    
+    # If no clear activity, ask for clarification
+    return """Samahani, sijaelewa. Tafadhali chagua moja ya chaguzi zifuatazo:
+
+*Kama vijana, wewe unafanya nini kiuchumi?*
+
+1️⃣ Mwanafunzi
+2️⃣ Mkulima  
+3️⃣ Mjasiriamali
+4️⃣ Mfanyakazi
+5️⃣ Bila ajira
+6️⃣ Nyingine
+
+*Andika nambari ya chaguo lako (1-6)*"""
+
+
+
+
+def get_gender_disability_message():
     """Get gender and disability question"""
-    if user_session.language == 'english':
-        return """*Please specify:*
+    return """*Je, wewe ni mwanamke au mwenye ulemavu?*
 
-1️⃣ Male
-2️⃣ Female
-3️⃣ Male with disability
-4️⃣ Female with disability
-5️⃣ Prefer not to say
-
-*Type the number of your choice (1-5)*"""
-    else:
-        return """*Je, wewe ni:*
+(Hii itatusaidia kukupa maelezo maalum)
 
 1️⃣ Mwanaume
 2️⃣ Mwanamke
@@ -432,7 +380,7 @@ def handle_gender_disability_state(user_session, text_lower):
         # Prefer not to say - keep defaults
         pass
     else:
-        return get_gender_disability_message(user_session)
+        return get_gender_disability_message()
     
     user_session.current_state = 'personalized_overview'
     user_session.save()
@@ -452,117 +400,93 @@ def get_personalized_overview(user_session):
     if activity == 'student':
         message = """📚 *Kama Mwanafunzi Vijana*
 
-DIRA 2050 inakutegemea kujenga uwezo wa vijana (Nguzo ya Pili: Uwezo wa Watu na Maendeleo ya Jamii). Dira inalenga kuwapa vijana elimu na ujuzi stahiki ili kushiriki katika uchumi wa kisasa, kuondoa umaskini mkubwa, na kuunda ajira milioni.
+DIRA 2050 inakutegemea kujenga uwezo wa vijana (kama ulivyotajwa katika Nguzo ya Pili: Uwezo wa Watu na Maendeleo ya Jamii). Dira inalenga kuwapa vijana elimu na ujuzi stahiki ili kushiriki katika uchumi wa kisasa, kuondoa umaskini mkubwa, na kuunda ajira milioni. Lengo kuu: 25% ya Watanzania wafike elimu ya juu, na vijana kuwa nguzo ya uvumbuzi na ujasiriamali. Hii itaongeza kipato cha kila mtu hadi USD 7,000 na kukuza usawa wa kijinsia na ulemavu.
 
-*Lengo kuu:* 25% ya Watanzania wafike elimu ya juu, na vijana kuwa nguzo ya uvumbuzi na ujasiriamali. Hii itaongeza kipato cha kila mtu hadi USD 7,000 na kukuza usawa wa kijinsia na ulemavu.
+*Ili kufanikisha DIRA, hapa ni maeneo unayoweza kuzingatia kama mwanafunzi:*
+1. Jenga ujuzi wa kidijitali na ujasiriamali (k.m. jiunge na programu za uvumbuzi ili kuchangia Vichocheo vya Sayansi na Teknolojia).
+2. Shiriki katika shughuli za jamii kukuza umoja na mshikamano (kwa vijana kushiriki maamuzi, kama katika Utawala Bora).
+3. Tumia elimu yako kuhifadhi mazingira (k.m. kujifunza kuhusu tabianchi ili kushiriki Nguzo ya Tatu: Uhifadhi wa Mazingira).
+4. Pata mafunzo ya ziada ili kushindana sokoni (lenga wahitimu wenye ujuzi stahiki, kutoa mchango kwa sekta kama Viwanda au Huduma).
+5. Thibiti uzalendo na vipaji vyako ili kujenga jamii inayowajibika.
 
-*Maeneo unayoweza kuzingatia:*
-1️⃣ Jenga ujuzi wa kidijitali na ujasiriamali
-2️⃣ Shiriki katika shughuli za jamii kukuza umoja
-3️⃣ Tumia elimu yako kuhifadhi mazingira
-4️⃣ Pata mafunzo ya ziada ili kushindana sokoni
-5️⃣ Thibiti uzalendo na vipaji vyako
-
-Je, unataka maelezo zaidi, quiz, au kutuma maoni?"""
+Je, unataka maelezo zaidi kuhusu sekta fulani, au kutuma maoni yako? Au "Soma PDF" ili tupate muhtasari wa kurasa maalum."""
 
     elif activity == 'farmer':
         message = """🌾 *Kama Mkulima Vijana*
 
-DIRA 2050 inakutambua kama nguzo ya Uchumi Imara, Jumuishi na Shindani (Nguzo ya Kwanza). Dira inalenga kufanya Tanzania kinara wa chakula Afrika na top 10 duniani kupitia sekta ya kilimo, kuongeza mauzo ya nje, na kuunda ajira kwa vijana.
+DIRA 2050 inakutambua kama nguzo ya Uchumi Imara, Jumuishi na Shindani (Nguzo ya Kwanza). Dira inalenga kufanya Tanzania kinara wa chakula Afrika na top 10 duniani kupitia sekta ya kilimo, kuongeza mauzo ya nje, na kuunda ajira kwa vijana. Hii itachangia ukuaji wa 8-10% wa uchumi, kupunguza umasikini, na kuwezesha vijana na wanawake katika sekta isiyo rasmi. Lengo: Universal access to clean water and 90% energy for productive farming.
 
-*Lengo:* Universal access to clean water na 90% energy for productive farming. Hii itachangia ukuaji wa 8-10% wa uchumi na kupunguza umasikini.
+*Ili kufanikisha DIRA, hapa ni maeneo unayoweza kuzingatia kama mkulima vijana:*
+1. Tumia teknolojia bunifu kama bayoteknolojia kuongeza tija na kupunguza athari za tabianchi (kushiriki Vichocheo vya Nishati na Uhifadhi wa Mazingira).
+2. Shiriki ushirikiano wa umma-binafsi (PPP) kwa miundombinu bora kama barabara na umwagiliaji (ili kufikia malengo ya Sekta za Mageuzi kama Kilimo).
+3. Rasimisha shughuli zako ili kupata mikopo nafuu na kushiriki uchumi rasmi (kuwezesha vijana katika uwekezaji na ajira).
+4. Lindeni ardhi na maji ili kutoa kilimo endelevu (kushiriki Nguzo ya Tatu na kukabiliana na mabadiliko ya tabianchi).
+5. Jenga vipaji vyako katika ujasiriamali ili kuuza mazao kimataifa (kuongeza mapato na mshikamano wa jamii).
 
-*Maeneo unayoweza kuzingatia:*
-1️⃣ Tumia teknolojia bunifu kama bayoteknolojia
-2️⃣ Shiriki ushirikiano wa umma-binafsi (PPP)
-3️⃣ Rasimisha shughuli zako ili kupata mikopo nafuu
-4️⃣ Lindeni ardhi na maji ili kutoa kilimo endelevu
-5️⃣ Jenga vipaji vyako katika ujasiriamali
-
-Je, unataka maelezo zaidi, quiz, au kutuma maoni?"""
+Je, unataka maelezo zaidi kuhusu sekta fulani, au kutuma maoni yako? Au "Soma PDF" ili tupate muhtasari wa kurasa maalum."""
 
     elif activity == 'entrepreneur':
         message = """💼 *Kama Mjasiriamali Vijana*
 
-DIRA 2050 inakutegemea kujenga Sekta Binafsi Imara (Nguzo ya Kwanza: Uchumi Imara). Dira inalenga kuwawezesha vijana katika ujasiriamali na uvumbuzi ili kuchangia uchumi wa USD 1 trilioni, kuunda ajira, na kukuza ushirikiano kimataifa.
+DIRA 2050 inakutegemea kujenga Sekta Binafsi Imara (katika Nguzo ya Kwanza: Uchumi Imara). Dira inalenga kuwawezesha vijana katika ujasiriamali na uvumbuzi ili kuchangia uchumi wa USD 1 trilioni, kuunda ajira, na kukuza ushirikiano kimataifa. Vijana ni sehemu kubwa ya idadi ya watu na nguzo muhimu katika maendeleo, na dira inasisitiza fursa sawa kwa vijana, wanawake, na wenye ulemavu katika biashara.
 
-*Vijana ni sehemu kubwa ya idadi ya watu na nguzo muhimu katika maendeleo.*
+*Ili kufanikisha DIRA, hapa ni maeneo unayoweza kuzingatia kama mjasiriamali vijana:*
+1. Vumbua bidhaa mpya na tumia kidijitali kama e-commerce kuuza nje (kushiriki Vichocheo vya Mageuzi ya Kidijitali na Uvumbuzi).
+2. Shiriki PPP ili kupata mitaji na msaada wa serikali (kuimarisha mazingira ya biashara na uwekezaji).
+3. Thibiti rushwa na kushiriki uongozi bora ili kukuza usawa wa kijinsia na ulemavu (kushiriki Msingi Mkuu: Utawala Bora).
+4. Lindeni mazingira katika biashara yako (k.m. bidhaa endelevu ili kushiriki Uhifadhi wa Mazingira).
+5. Jenga mtandao na vijana wengine ili kushiriki maamuzi na kuunda ajira (kuongeza mshikamano wa kitaifa).
 
-*Maeneo unayoweza kuzingatia:*
-1️⃣ Vumbua bidhaa mpya na tumia kidijitali
-2️⃣ Shiriki PPP ili kupata mitaji na msaada
-3️⃣ Thibiti rushwa na kushiriki uongozi bora
-4️⃣ Lindeni mazingira katika biashara yako
-5️⃣ Jenga mtandao na vijana wengine
-
-Je, unataka maelezo zaidi, quiz, au kutuma maoni?"""
+Je, unataka maelezo zaidi kuhusu sekta fulani, au kutuma maoni yako? Au "Soma PDF" ili tupate muhtasari wa kurasa maalum."""
 
     elif activity == 'worker':
         message = """👷 *Kama Mfanyakazi Vijana*
 
 DIRA 2050 inakutambua kama mchangiaji muhimu katika Uchumi Imara (Nguzo ya Kwanza). Dira inalenga kuunda ajira milioni na kuimarisha sekta mbalimbali ili kuchangia uchumi wa USD 1 trilioni.
 
-*Lengo:* Kuongeza ajira na kipato cha vijana, pamoja na usawa wa kijinsia na ulemavu.
+*Ili kufanikisha DIRA, hapa ni maeneo unayoweza kuzingatia kama mfanyakazi vijana:*
+1. Jenga ujuzi wa ziada katika sekta yako (kushiriki katika mafunzo ya ujuzi stahiki).
+2. Shiriki katika mafunzo ya uongozi na maamuzi (kushiriki Utawala Bora).
+3. Thibiti maadili ya kazi na uongozi bora (kuimarisha mazingira ya kazi).
+4. Jenga mtandao na wafanyakazi wengine (kuongeza mshikamano wa sekta).
+5. Shiriki katika maamuzi ya sekta na maendeleo (kuchangia maendeleo ya sekta).
 
-*Maeneo unayoweza kuzingatia:*
-1️⃣ Jenga ujuzi wa ziada katika sekta yako
-2️⃣ Shiriki katika mafunzo ya uongozi
-3️⃣ Thibiti maadili ya kazi na uongozi bora
-4️⃣ Jenga mtandao na wafanyakazi wengine
-5️⃣ Shiriki katika maamuzi ya sekta
-
-Je, unataka maelezo zaidi, quiz, au kutuma maoni?"""
+Je, unataka maelezo zaidi kuhusu sekta fulani, au kutuma maoni yako? Au "Soma PDF" ili tupate muhtasari wa kurasa maalum."""
 
     elif activity == 'unemployed':
         message = """🤝 *Kama Vijana Bila Ajira*
 
 DIRA 2050 inalenga kuunda ajira milioni kwa vijana na kuondoa umasikini. Dira inasisitiza fursa sawa kwa vijana, wanawake, na wenye ulemavu katika ajira na ujasiriamali.
 
-*Lengo:* Kuongeza ajira na kipato cha vijana, pamoja na elimu na ujuzi stahiki.
+*Ili kufanikisha DIRA, hapa ni maeneo unayoweza kuzingatia kama vijana bila ajira:*
+1. Jifunze ujuzi mpya wa kidijitali na ujasiriamali (kushiriki katika mafunzo ya ujuzi).
+2. Jiunge na mafunzo ya ujasiriamali na biashara (kujenga uwezo wa biashara).
+3. Shiriki katika shughuli za jamii na maendeleo (kushiriki katika maamuzi ya jamii).
+4. Tafuta fursa za ajira au biashara (kushiriki katika sekta mbalimbali).
+5. Jenga mtandao na vijana wengine (kuongeza mshikamano na fursa).
 
-*Maeneo unayoweza kuzingatia:*
-1️⃣ Jifunze ujuzi mpya wa kidijitali
-2️⃣ Jiunge na mafunzo ya ujasiriamali
-3️⃣ Shiriki katika shughuli za jamii
-4️⃣ Tafuta fursa za ajira au biashara
-5️⃣ Jenga mtandao na vijana wengine
-
-Je, unataka maelezo zaidi, quiz, au kutuma maoni?"""
+Je, unataka maelezo zaidi kuhusu sekta fulani, au kutuma maoni yako? Au "Soma PDF" ili tupate muhtasari wa kurasa maalum."""
 
     else:
         message = """🌟 *Kama Vijana wa Tanzania*
 
 DIRA 2050 inakutegemea kama mchangiaji muhimu katika maendeleo ya nchi. Dira inalenga kuwa nchi yenye uchumi imara wa dola trilioni 1, elimu bora, na maisha bora kwa wote.
 
-*Lengo kuu:* Kuongeza kipato cha kila mtu hadi USD 7,000 na kukuza usawa wa kijinsia na ulemavu.
+*Ili kufanikisha DIRA, hapa ni maeneo unayoweza kuzingatia kama vijana wa Tanzania:*
+1. Jenga ujuzi wa kidijitali na ujasiriamali (kushiriki katika mafunzo ya ujuzi).
+2. Shiriki katika shughuli za jamii na maendeleo (kushiriki katika maamuzi ya jamii).
+3. Thibiti maadili ya kitaifa na uzalendo (kuimarisha maadili ya kitaifa).
+4. Jenga mtandao na vijana wengine (kuongeza mshikamano wa kitaifa).
+5. Shiriki katika maamuzi ya jamii na maendeleo (kuchangia maendeleo ya nchi).
 
-*Maeneo unayoweza kuzingatia:*
-1️⃣ Jenga ujuzi wa kidijitali na ujasiriamali
-2️⃣ Shiriki katika shughuli za jamii
-3️⃣ Thibiti maadili ya kitaifa
-4️⃣ Jenga mtandao na vijana wengine
-5️⃣ Shiriki katika maamuzi ya jamii
-
-Je, unataka maelezo zaidi, quiz, au kutuma maoni?"""
+Je, unataka maelezo zaidi kuhusu sekta fulani, au kutuma maoni yako? Au "Soma PDF" ili tupate muhtasari wa kurasa maalum."""
 
     # Add gender/disability specific message
     if gender == 'female':
-        if user_session.language == 'english':
-            message += "\n\n*As a young woman, DIRA emphasizes gender equality in employment and land ownership.*"
-        else:
-            message += "\n\n*Kama mwanamke vijana, DIRA inasisitiza usawa wa kijinsia katika ajira na umiliki wa ardhi.*"
+        message += "\n\n*Kama mwanamke vijana, DIRA inasisitiza usawa wa kijinsia katika ajira na umiliki wa ardhi.*"
     
     if has_disability:
-        if user_session.language == 'english':
-            message += "\n\n*As a person with disability, DIRA emphasizes empowerment and equal opportunities in development.*"
-        else:
-            message += "\n\n*Kama mwenye ulemavu, DIRA inasisitiza uwezeshaji na fursa sawa katika maendeleo.*"
-
-    # Add menu options
-    if user_session.language == 'english':
-        message += "\n\n*What would you like to do next?*\n\n1️⃣ Take Quiz\n2️⃣ Get Details\n3️⃣ Give Feedback\n4️⃣ View PDF Summary\n5️⃣ Restart\n\n*Type the number of your choice (1-5)*"
-    else:
-        message += "\n\n*Je, unataka kufanya nini baadaye?*\n\n1️⃣ Anza Quiz\n2️⃣ Pata Maelezo\n3️⃣ Toa Maoni\n4️⃣ Angalia PDF\n5️⃣ Anza Upya\n\n*Andika nambari ya chaguo lako (1-5)*"
+        message += "\n\n*Kama mwenye ulemavu, DIRA inasisitiza uwezeshaji na fursa sawa katika maendeleo.*"
 
     user_session.current_state = 'personalized_overview'
     user_session.save()
@@ -572,190 +496,29 @@ Je, unataka maelezo zaidi, quiz, au kutuma maoni?"""
 
 def handle_personalized_overview_state(user_session, text_lower):
     """Handle personalized overview state"""
-    if '1' in text_lower or any(word in text_lower for word in ['quiz', 'jaribio', 'maswali']):
-        return start_quiz(user_session)
-    elif '2' in text_lower or any(word in text_lower for word in ['maelezo', 'details', 'zaidi']):
+    if any(word in text_lower for word in ['maelezo', 'details', 'zaidi']):
         return get_detailed_info(user_session)
-    elif '3' in text_lower or any(word in text_lower for word in ['maoni', 'feedback']):
+    elif any(word in text_lower for word in ['maoni', 'feedback']):
         user_session.current_state = 'feedback'
         user_session.save()
         return get_feedback_message()
-    elif '4' in text_lower or any(word in text_lower for word in ['pdf', 'document']):
+    elif any(word in text_lower for word in ['pdf', 'document', 'soma']):
         return get_pdf_info()
-    elif '5' in text_lower or any(word in text_lower for word in ['anza', 'restart']):
+    elif any(word in text_lower for word in ['rudi', 'menyu', 'kuu', 'anza', 'restart']):
         user_session.current_state = 'welcome'
         user_session.save()
         return get_welcome_message()
     else:
-        if user_session.language == 'english':
-            return """*Please choose an option:*
+        return """*Tafadhali chagua moja ya chaguzi zifuatazo:*
 
-1️⃣ Take Quiz
-2️⃣ Get Details
-3️⃣ Give Feedback
-4️⃣ View PDF Summary
-5️⃣ Restart
+1️⃣ Maelezo zaidi
+2️⃣ Toa maoni
+3️⃣ Soma PDF
+4️⃣ Rudi Menyu Kuu
 
-*Type the number of your choice (1-5)*"""
-        else:
-            return """*Tafadhali chagua moja ya chaguzi zifuatazo:*
-
-1️⃣ Anza Quiz
-2️⃣ Pata Maelezo
-3️⃣ Toa Maoni
-4️⃣ Angalia PDF
-5️⃣ Anza Upya
-
-*Andika nambari ya chaguo lako (1-5)*"""
+*Andika nambari ya chaguo lako (1-4)*"""
 
 
-def start_quiz(user_session):
-    """Start quiz session"""
-    try:
-        quiz_session, created = QuizSession.objects.get_or_create(
-            user_session=user_session,
-            defaults={'current_question': 0, 'score': 0}
-        )
-        user_session.current_state = 'quiz'
-        user_session.save()
-        
-        return get_quiz_question(quiz_session)
-    except Exception as e:
-        print(f"Error starting quiz: {str(e)}")
-        return "Samahani, kuna tatizo la kiufundi. Jaribu tena baadaye."
-
-
-def get_quiz_question(quiz_session):
-    """Get quiz question"""
-    questions = [
-        {
-            'question': 'Lengo la GDP la Tanzania ifikapo 2050 ni nini?',
-            'options': ['A. USD 500 bilioni', 'B. USD 1 trilioni', 'C. USD 2 trilioni'],
-            'correct': 'B'
-        },
-        {
-            'question': 'Nguzo kuu za DIRA 2050 ni ngapi?',
-            'options': ['A. 3', 'B. 5', 'C. 7'],
-            'correct': 'A'
-        },
-        {
-            'question': 'Kipato cha kila mtu kinatarajiwa kuongezeka hadi?',
-            'options': ['A. USD 3,000', 'B. USD 5,000', 'C. USD 7,000'],
-            'correct': 'C'
-        },
-        {
-            'question': 'DIRA inalenga kuunda ajira ngapi?',
-            'options': ['A. Milioni 5', 'B. Milioni 10', 'C. Milioni 15'],
-            'correct': 'B'
-        },
-        {
-            'question': 'Tanzania inalenga kuwa kinara wa chakula katika?',
-            'options': ['A. Afrika Mashariki', 'B. Afrika', 'C. Dunia'],
-            'correct': 'B'
-        }
-    ]
-    
-    if quiz_session.current_question >= len(questions):
-        return finish_quiz(quiz_session)
-    
-    question_data = questions[quiz_session.current_question]
-    return f"""📝 *Swali {quiz_session.current_question + 1}/5*
-
-{question_data['question']}
-
-{chr(10).join(question_data['options'])}
-
-Andika herufi ya jibu lako (A, B, au C)"""
-
-
-def handle_quiz_state(user_session, text_lower):
-    """Handle quiz state"""
-    try:
-        quiz_session = QuizSession.objects.get(user_session=user_session)
-        
-        # Check answer
-        answer = text_lower.strip().upper()
-        questions = [
-            {'correct': 'B'},
-            {'correct': 'A'},
-            {'correct': 'C'},
-            {'correct': 'B'},
-            {'correct': 'B'}
-        ]
-        
-        if quiz_session.current_question < len(questions):
-            correct_answer = questions[quiz_session.current_question]['correct']
-            
-            if answer == correct_answer:
-                quiz_session.score += 1
-                response = "✅ Sahihi! Jibu lako ni sahihi."
-            else:
-                response = f"❌ Sio sahihi. Jibu sahihi ni {correct_answer}."
-            
-            quiz_session.current_question += 1
-            quiz_session.save()
-            
-            if quiz_session.current_question >= 5:
-                return finish_quiz(quiz_session)
-            else:
-                response += f"\n\n{get_quiz_question(quiz_session)}"
-                return response
-        else:
-            return finish_quiz(quiz_session)
-            
-    except Exception as e:
-        print(f"Error handling quiz: {str(e)}")
-        return "Samahani, kuna tatizo la kiufundi. Jaribu tena baadaye."
-
-
-def finish_quiz(quiz_session):
-    """Finish quiz and show results"""
-    try:
-        quiz_session.is_completed = True
-        quiz_session.completed_at = timezone.now()
-        quiz_session.save()
-        
-        user_session = quiz_session.user_session
-        user_session.current_state = 'personalized_overview'
-        user_session.save()
-        
-        score = quiz_session.score
-        total = quiz_session.total_questions
-        percentage = (score / total) * 100
-        
-        if percentage >= 80:
-            message = f"""🎉 *Hongera!*
-
-Umemaliza jaribio la maswali kwa ufanisi!
-*Alama:* {score}/{total} ({percentage:.0f}%)
-
-Umeonyesha uelewa mzuri wa DIRA 2050. Endelea kujifunza na kushiriki katika maendeleo ya nchi!
-
-Je, unataka maelezo zaidi, kutuma maoni, au "Anza" kuanza upya?"""
-        elif percentage >= 60:
-            message = f"""👍 *Vizuri!*
-
-Umemaliza jaribio la maswali!
-*Alama:* {score}/{total} ({percentage:.0f}%)
-
-Umeonyesha uelewa wa kati wa DIRA 2050. Endelea kujifunza zaidi!
-
-Je, unataka maelezo zaidi, kutuma maoni, au "Anza" kuanza upya?"""
-        else:
-            message = f"""📚 *Jifunze zaidi!*
-
-Umemaliza jaribio la maswali!
-*Alama:* {score}/{total} ({percentage:.0f}%)
-
-Hakuna shida! DIRA 2050 ni mada mpya. Endelea kujifunza zaidi kuhusu dira ya nchi.
-
-Je, unataka maelezo zaidi, kutuma maoni, au "Anza" kuanza upya?"""
-        
-        return message
-        
-    except Exception as e:
-        print(f"Error finishing quiz: {str(e)}")
-        return "Samahani, kuna tatizo la kiufundi. Jaribu tena baadaye."
 
 
 def get_feedback_message():
@@ -770,12 +533,12 @@ Tafadhali toa maoni yako kuhusu DIRA 2050 Chatbot:
 
 Andika maoni yako hapa chini. Tutayapeleka kwa Tume ya Mipango.
 
-*Au andika "Anza" kuanza upya mazungumzo.*"""
+*Au andika "Rudi Menyu Kuu" kuanza upya mazungumzo.*"""
 
 
 def handle_feedback_state(user_session, text_lower):
     """Handle feedback state"""
-    if any(word in text_lower for word in ['anza', 'restart', 'anza upya']):
+    if any(word in text_lower for word in ['rudi', 'menyu', 'kuu', 'anza', 'restart']):
         user_session.current_state = 'welcome'
         user_session.save()
         return get_welcome_message()
@@ -790,7 +553,7 @@ def handle_feedback_state(user_session, text_lower):
 
 Tutayapeleka kwa Tume ya Mipango ili kuboresha huduma.
 
-Je, unataka maelezo zaidi, quiz, au "Anza" kuanza upya?"""
+Je, unataka maelezo zaidi, au "Rudi Menyu Kuu" kuanza upya?"""
 
 
 def get_detailed_info(user_session):
@@ -820,7 +583,7 @@ def get_detailed_info(user_session):
 • Shiriki katika shughuli za mazingira
 • Tumia teknolojia endelevu
 
-Je, unataka quiz, maoni, au "Anza" kuanza upya?"""
+Je, unataka maoni, au "Rudi Menyu Kuu" kuanza upya?"""
 
     elif activity == 'farmer':
         return """🌾 *Maelezo zaidi kwa Mkulima*
@@ -845,7 +608,7 @@ Je, unataka quiz, maoni, au "Anza" kuanza upya?"""
 • Kupata mikopo nafuu
 • Kushiriki uchumi rasmi
 
-Je, unataka quiz, maoni, au "Anza" kuanza upya?"""
+Je, unataka maoni, au "Rudi Menyu Kuu" kuanza upya?"""
 
     elif activity == 'entrepreneur':
         return """💼 *Maelezo zaidi kwa Mjasiriamali*
@@ -875,7 +638,7 @@ Je, unataka quiz, maoni, au "Anza" kuanza upya?"""
 • Teknolojia ya kijani
 • Mazingira ya biashara
 
-Je, unataka quiz, maoni, au "Anza" kuanza upya?"""
+Je, unataka maoni, au "Rudi Menyu Kuu" kuanza upya?"""
 
     else:
         return """🌟 *Maelezo zaidi kuhusu DIRA 2050*
@@ -897,7 +660,7 @@ Je, unataka quiz, maoni, au "Anza" kuanza upya?"""
 *Lengo la kipato:* USD 7,000 kwa kila mtu
 *Lengo la ajira:* Milioni 10
 
-Je, unataka quiz, maoni, au "Anza" kuanza upya?"""
+Je, unataka maoni, au "Rudi Menyu Kuu" kuanza upya?"""
 
 
 def get_pdf_info():
@@ -916,33 +679,19 @@ Tembelea: www.planning.go.tz
 
 *Au andika nambari ya ukurasa (k.m. "25") ili upate muhtasari wa ukurasa husika.*
 
-Je, unataka quiz, maoni, au "Anza" kuanza upya?"""
+Je, unataka maoni, au "Rudi Menyu Kuu" kuanza upya?"""
 
 
 def handle_default_response(user_session, text_lower):
     """Handle default response"""
-    if user_session.language == 'english':
-        return """Sorry, I didn't understand. Please choose one of the following options:
+    return """Samahani, sijaelewa. Tafadhali chagua moja ya chaguzi zifuatazo:
 
-1️⃣ Take Quiz
-2️⃣ Get Details  
-3️⃣ Give Feedback
-4️⃣ View PDF Summary
-5️⃣ Restart
-6️⃣ Help
+1️⃣ Maelezo zaidi
+2️⃣ Toa maoni
+3️⃣ Soma PDF
+4️⃣ Rudi Menyu Kuu
 
-*Type the number of your choice (1-6)*"""
-    else:
-        return """Samahani, sijaelewa. Tafadhali chagua moja ya chaguzi zifuatazo:
-
-1️⃣ Anza Quiz
-2️⃣ Pata Maelezo
-3️⃣ Toa Maoni
-4️⃣ Angalia PDF
-5️⃣ Anza Upya
-6️⃣ Msaada
-
-*Andika nambari ya chaguo lako (1-6)*"""
+*Andika nambari ya chaguo lako (1-4)*"""
 
 
 def handle_image_message(phone_number, message):
