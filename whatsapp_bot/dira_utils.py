@@ -94,6 +94,43 @@ def send_interactive_message(phone_number, header_text, body_text, buttons):
         return None
 
 
+def send_restart_button(phone_number, message_text):
+    """Send restart button for session management"""
+    try:
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": phone_number,
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "body": {
+                    "text": message_text
+                },
+                "action": {
+                    "buttons": [
+                        {
+                            "type": "reply",
+                            "reply": {
+                                "id": "restart_session",
+                                "title": "Anza Upya"
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+        
+        response = whatsapp_api_call(payload)
+        if not response or response.get('error'):
+            print(f"Failed to send restart button: {response.get('error', {}).get('message', 'Unknown error')}")
+        return response
+    except Exception as e:
+        print(f"Error in send_restart_button: {str(e)}")
+        # Fallback to text message
+        send_text_message(phone_number, message_text + "\n\nAndika 'Anza Upya' ili kuanza upya.")
+
+
 def send_interactive_response(phone_number, user_session, response_text):
     """Send interactive response with list buttons based on current state"""
     try:
@@ -126,22 +163,49 @@ def log_conversation(user_session, message_type, content):
 
 
 def get_or_create_user_session(phone_number, contact_name=None):
-    """Get or create user session"""
+    """Get or create user session with timeout handling"""
     try:
-        session, created = UserSession.objects.get_or_create(
-            phone_number=phone_number,
-            defaults={
-                'name': contact_name,
-                'current_state': 'welcome',
-                'is_active': True
-            }
-        )
-        if created:
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Check if user has existing session
+        try:
+            session = UserSession.objects.get(phone_number=phone_number)
+            
+            # Check if session is expired (more than 15 minutes)
+            if session.updated_at < timezone.now() - timedelta(minutes=15):
+                # Session expired - delete and create new one
+                session.delete()
+                session = UserSession.objects.create(
+                    phone_number=phone_number,
+                    name=contact_name,
+                    current_state='welcome',
+                    is_active=True
+                )
+                print(f"Session expired, created new session for {phone_number}")
+                return session, 'expired'
+            
+            # Session exists and is active
+            if session.current_state != 'welcome':
+                # User is in middle of conversation
+                return session, 'active'
+            else:
+                return session, 'welcome'
+                
+        except UserSession.DoesNotExist:
+            # First time user - create new session
+            session = UserSession.objects.create(
+                phone_number=phone_number,
+                name=contact_name,
+                current_state='welcome',
+                is_active=True
+            )
             print(f"Created new session for {phone_number}")
-        return session
+            return session, 'new'
+            
     except Exception as e:
         print(f"Error getting/creating user session: {str(e)}")
-        return None
+        return None, 'error'
 
 
 def process_message(value):
@@ -183,6 +247,8 @@ def process_message(value):
                         text_body = '2'
                     elif button_id == 'btn_3':
                         text_body = '3'
+                    elif button_id == 'restart_session':
+                        text_body = '#'
                     else:
                         text_body = button_text.lower()
                     handle_text_message(from_number, text_body, contact_name)
@@ -209,9 +275,28 @@ def handle_text_message(phone_number, text, contact_name=None):
     """Handle incoming text messages with DIRA 2050 flow"""
     try:
         # Get or create user session
-        user_session = get_or_create_user_session(phone_number, contact_name)
+        user_session, session_status = get_or_create_user_session(phone_number, contact_name)
         if not user_session:
             send_text_message(phone_number, "Samahani, kuna tatizo la kiufundi. Jaribu tena baadaye.")
+            return
+        
+        # Handle different session states
+        if session_status == 'expired':
+            # Session expired - show welcome message
+            response = get_welcome_message()
+            send_text_message(phone_number, response)
+            log_conversation(user_session, 'outgoing', response)
+            return
+            
+        elif session_status == 'active':
+            # User is in middle of conversation
+            response = """⚠️ *Umeingilia session iliyopo!*
+
+Unaendelea na mazungumzo yako ya awali. Ikiwa unataka kuanza upya, bonyeza kitufe hapa chini."""
+            
+            # Send restart button
+            send_restart_button(phone_number, response)
+            log_conversation(user_session, 'outgoing', response)
             return
         
         # Log incoming message
@@ -257,7 +342,7 @@ def process_dira_flow(user_session, text):
     current_state = user_session.current_state
     
     # Handle special commands
-    if text_lower == '#':
+    if text_lower == '#' or 'restart_session' in text_lower or 'anza upya' in text_lower:
         # Clear session and restart
         user_session.current_state = 'welcome'
         user_session.economic_activity = ''
