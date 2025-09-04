@@ -305,6 +305,20 @@ Unaendelea na mazungumzo yako ya awali. Ikiwa unataka kuanza upya, bonyeza kituf
         # Process based on current state
         response = process_dira_flow(user_session, text)
         
+        # Check if session was restarted (deleted and recreated)
+        try:
+            # Try to get the session again in case it was recreated
+            current_session = UserSession.objects.get(phone_number=phone_number)
+            user_session = current_session
+        except UserSession.DoesNotExist:
+            # Session was deleted, create new one
+            user_session = UserSession.objects.create(
+                phone_number=phone_number,
+                name=contact_name,
+                current_state='welcome',
+                is_active=True
+            )
+        
         # Send response (use interactive buttons for 3-option selections)
         if user_session.current_state in ['gender_disability']:
             send_interactive_response(phone_number, user_session, response)
@@ -343,12 +357,17 @@ def process_dira_flow(user_session, text):
     
     # Handle special commands
     if text_lower == '#' or 'restart_session' in text_lower or 'anza upya' in text_lower:
-        # Clear session and restart
-        user_session.current_state = 'welcome'
-        user_session.economic_activity = ''
-        user_session.gender = ''
-        user_session.has_disability = False
-        user_session.save()
+        # Clear session completely and start fresh
+        user_session.delete()
+        # Create new session
+        new_session = UserSession.objects.create(
+            phone_number=user_session.phone_number,
+            name=user_session.name,
+            current_state='welcome',
+            is_active=True
+        )
+        # Update the reference to the new session
+        user_session = new_session
         return get_welcome_message()
     
     if any(cmd in text_lower for cmd in ['restart', 'anza', 'anza upya']):
