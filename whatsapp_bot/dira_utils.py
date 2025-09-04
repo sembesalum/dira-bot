@@ -444,10 +444,13 @@ def handle_welcome_state(user_session, text_lower):
             return get_gender_disability_message()
     
     # If no clear activity, ask for clarification
-    return """Samahani, sijaelewa. Tafadhali chagua moja ya chaguzi zifuatazo:
+    return  """🇹🇿 *Karibu kwa DIRA 2050 Chatbot!*
+
+Hii ni dira ya Tanzania kuwa nchi yenye uchumi imara wa dola trilioni 1, elimu bora, na maisha bora kwa wote ifikapo 2050.
 
 *Kama vijana, wewe unafanya nini kiuchumi?*
 
+Chagua moja:
 1️⃣ Mwanafunzi
 2️⃣ Mkulima  
 3️⃣ Mjasiriamali
